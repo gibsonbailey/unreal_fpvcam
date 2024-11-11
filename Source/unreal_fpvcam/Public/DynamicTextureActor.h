@@ -42,7 +42,13 @@ private:
     AVFrame* frame;
     AVFrame* latest_frame;
     AVPacket* packet;
+    
+    int texture_width;
+    int texture_height;
+    
+    int videoStreamIndex;
 
-    void UpdateTexture();
+    void UpdateTexture(uint8_t* img_data, int num_bytes);
     int InitializeUDPVideoStream();
+    void DigestStream();
 };

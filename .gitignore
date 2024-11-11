@@ -1,0 +1,59 @@
+# Ignore binary and temporary files
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Ignore project files for specific IDEs
+.vscode/
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
+
+# Ignore user-specific settings
+*.opensdf
+*.opendb
+*.VC.db
+*.DS_Store
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore Unreal Engine user-specific settings
+*.log
+*.temp
+*.obj
+*.ipch
+*.pdb
+*.psess
+*.pvs
+
+# Ignore auto-generated plugin files
+Plugins/*/Intermediate/
+Plugins/*/Binaries/
+
+# Unreal Engine auto-generated files
+*.pdb
+*.idb
+*.obj
+*.dll
+*.exe
+*.lib
+*.o
+*.h.gch
+*.gen.cpp
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
+*.uproject.user
+
+# Ignore optional folders like Config if you want version control, remove it
+Config/
+
+# Ignore the uproject specific files
+*.pyc
+*.hlsl
+*.assets
