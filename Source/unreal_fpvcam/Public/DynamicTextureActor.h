@@ -47,8 +47,10 @@ private:
     int texture_height;
     
     int videoStreamIndex;
+    
+    bool stream_initialized;
 
     void UpdateTexture(uint8_t* img_data, int num_bytes);
     int InitializeUDPVideoStream();
-    void DigestStream();
+    void Tick(float delta_time);
 };

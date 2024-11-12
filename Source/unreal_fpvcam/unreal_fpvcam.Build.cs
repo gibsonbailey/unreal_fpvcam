@@ -43,6 +43,7 @@ public class unreal_fpvcam : ModuleRules
         PublicAdditionalLibraries.Add(Path.Combine(FFmpegLibPath, "libavcodec.a"));
         PublicAdditionalLibraries.Add(Path.Combine(FFmpegLibPath, "libavformat.a"));
         PublicAdditionalLibraries.Add(Path.Combine(FFmpegLibPath, "libswscale.a"));
+        PublicAdditionalLibraries.Add(Path.Combine(FFmpegLibPath, "libswresample.a"));
         PublicAdditionalLibraries.Add(Path.Combine(FFmpegLibPath, "libavutil.a"));
         
         // x264 library
