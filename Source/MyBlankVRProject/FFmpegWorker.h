@@ -1,10 +1,24 @@
-// FFmpegWorker.h
+
+#ifndef FFmpegWorker_hpp
+#define FFmpegWorker_hpp
+
 #pragma once
+
+extern "C"
+{
+    #include <libavformat/avformat.h>
+    #include <libavcodec/avcodec.h>
+    #include <libswscale/swscale.h>
+    #include <libavutil/imgutils.h>
+}
 
 #include "CoreMinimal.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
-#include "DynamicTextureActor.h"
+
+
+class ADynamicTextureActor; // Forward declaration
+
 
 class FFmpegWorker : public FRunnable
 {
@@ -30,3 +44,5 @@ private:
     uint8* LatestFrameData;
     int FrameDataSize;
 };
+
+#endif /* FFmpegWorker_hpp */

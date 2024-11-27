@@ -2,16 +2,11 @@
 
 #pragma once
 
-extern "C" {
-    #include <libavformat/avformat.h>
-    #include <libavcodec/avcodec.h>
-    #include <libswscale/swscale.h>
-    #include <libavutil/imgutils.h>
-}
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
+#include "FFmpegWorker.h"
 #include "DynamicTextureActor.generated.h"
 
 UCLASS()
@@ -29,13 +24,11 @@ public:
     UPROPERTY(Transient)
     UStaticMeshComponent* PlaneMesh; // The plane to apply the texture to
 
-protected:
-    virtual void BeginPlay() override;
-    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    // Callback for ffmpeg frame
+    void OnNewFrameAvailable();
 
-private:
-    FTimerHandle TimerHandle;
-    
+    int InitializeUDPVideoStream();
+
     // ffmpeg
     AVFormatContext* formatContext;
     struct SwsContext* swsCtx;
@@ -51,7 +44,19 @@ private:
     
     bool stream_initialized;
 
+protected:
+    virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+private:
+    FFmpegWorker* FFmpegWorkerInstance;
+    FRunnableThread* Thread;
+
+    FThreadSafeBool bHasNewFrame;
+    FCriticalSection NewFrameLock;
+    uint8* PendingFrameData;
+    int PendingFrameSize;
+
     void UpdateTexture(uint8_t* img_data, int num_bytes);
-    int InitializeUDPVideoStream();
     void Tick(float delta_time);
 };

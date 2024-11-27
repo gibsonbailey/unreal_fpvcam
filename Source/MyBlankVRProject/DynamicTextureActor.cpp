@@ -64,8 +64,9 @@ ADynamicTextureActor::ADynamicTextureActor()
   PlaneMesh->SetUsingAbsoluteRotation(false);
   PlaneMesh->SetUsingAbsoluteLocation(false);
   PlaneMesh->SetRelativeLocation(FVector(200.0f, 0.0f, 0.0f));
-  PlaneMesh->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
-  PlaneMesh->SetRelativeScale3D(FVector(1.7f, 2.0f, 1.0f));
+  // PlaneMesh->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
+  PlaneMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, 90.0f));
+  PlaneMesh->SetRelativeScale3D(FVector(3.0f, 1.5f, 1.0f));
   PlaneMesh->SetVisibility(true);
   PlaneMesh->SetHiddenInGame(false);
 }
@@ -121,12 +122,25 @@ void ADynamicTextureActor::BeginPlay()
     
     UE_LOG(LogTemp, Error, TEXT("Prepare to open UDP stream."));
 
+    // int ret = InitializeUDPVideoStream();
+    // if (ret == -1) {
+    //     UE_LOG(LogTemp, Error, TEXT("UDP Stream Failed to Open"));
+    // }
 
-    // UpdateTexture(nullptr, 0);
-    
-    int ret = InitializeUDPVideoStream();
-    if (ret == -1) {
-        UE_LOG(LogTemp, Error, TEXT("UDP Stream Failed to Open"));
+    bHasNewFrame = false;
+    PendingFrameData = nullptr;
+    PendingFrameSize = 0;
+
+    // Start the worker thread
+    FFmpegWorkerInstance = new FFmpegWorker(this);
+    Thread = FRunnableThread::Create(FFmpegWorkerInstance, TEXT("FFmpegWorkerThread"));
+    if (Thread)
+    {
+        UE_LOG(LogTemp, Log, TEXT("FFmpegWorker thread started."));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to start FFmpegWorker thread."));
     }
 }
 
@@ -204,7 +218,27 @@ void ADynamicTextureActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
     // Always call the base class EndPlay first
     Super::EndPlay(EndPlayReason);
 
-    // Place your cleanup code here
+
+
+    if (FFmpegWorkerInstance)
+    {
+        FFmpegWorkerInstance->Stop();
+    }
+
+    if (Thread)
+    {
+        Thread->WaitForCompletion();
+        delete Thread;
+        Thread = nullptr;
+    }
+
+    if (FFmpegWorkerInstance)
+    {
+        delete FFmpegWorkerInstance;
+        FFmpegWorkerInstance = nullptr;
+    }
+
+    // FFmpeg cleanup
     if (swsCtx)
     {
         sws_freeContext(swsCtx);
@@ -236,72 +270,114 @@ void ADynamicTextureActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
         formatContext = nullptr;
     }
 
-    // Deinitialize network components if needed
+    // Deinitialize network components
     avformat_network_deinit();
+
 }
+
+
+void ADynamicTextureActor::OnNewFrameAvailable()
+{
+    // This is called from the worker thread
+    // Use a thread-safe way to mark that a new frame is ready
+    {
+        FScopeLock Lock(&NewFrameLock);
+        if (FFmpegWorkerInstance->GetLatestFrame(PendingFrameData, PendingFrameSize))
+        {
+            bHasNewFrame = true;
+        }
+    }
+}
+
 
 void ADynamicTextureActor::Tick(float delta_time) {
     Super::Tick(delta_time);
-    
-    if (!stream_initialized) {
-        // UE_LOG(LogTemp, Error, TEXT("Tried to Tick, but not yet initialized."));
-        return;
-    }
-    
-    UE_LOG(LogTemp, Error, TEXT("Ticking..."));
-    
-    int src_width = codecContext->width;
-    int src_height = codecContext->height;
-    
-    // int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGRA, src_width, src_height, 1);
-    int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGRA, texture_width, texture_height, 1);
-    uint8_t* buffer = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
-    
-    if (av_read_frame(formatContext, packet) >= 0) {
-        if (packet->stream_index == videoStreamIndex) {
-            avcodec_send_packet(codecContext, packet);
+
+    if (bHasNewFrame)
+    {
+        uint8* FrameData = nullptr;
+        int FrameSize = 0;
+
+        // Copy the frame data
+        {
+            FScopeLock Lock(&NewFrameLock);
+            if (PendingFrameData && PendingFrameSize > 0)
+            {
+                FrameData = PendingFrameData;
+                FrameSize = PendingFrameSize;
+                PendingFrameData = nullptr;
+                PendingFrameSize = 0;
+            }
+            bHasNewFrame = false;
         }
-        av_packet_unref(packet);
-    }
 
-    bool have_new_frame = false;
-    while (avcodec_receive_frame(codecContext, frame) == 0) {
-        av_frame_unref(latest_frame);
-        av_frame_move_ref(latest_frame, frame);
-        have_new_frame = true;
+        if (FrameData && FrameSize > 0)
+        {
+            // Update the texture
+            UpdateTexture(FrameData, FrameSize);
+            av_free(FrameData);
+        }
     }
+    
+    // if (!stream_initialized) {
+    //     // UE_LOG(LogTemp, Error, TEXT("Tried to Tick, but not yet initialized."));
+    //     return;
+    // }
+    
+    // UE_LOG(LogTemp, Error, TEXT("Ticking..."));
+    
+    // int src_width = codecContext->width;
+    // int src_height = codecContext->height;
+    
+    // // int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGRA, src_width, src_height, 1);
+    // int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGRA, texture_width, texture_height, 1);
+    // uint8_t* buffer = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
+    
+    // if (av_read_frame(formatContext, packet) >= 0) {
+    //     if (packet->stream_index == videoStreamIndex) {
+    //         avcodec_send_packet(codecContext, packet);
+    //     }
+    //     av_packet_unref(packet);
+    // }
 
-    if (have_new_frame) {
-        UE_LOG(LogTemp, Error, TEXT("Have new frame!!!"));
+    // bool have_new_frame = false;
+    // while (avcodec_receive_frame(codecContext, frame) == 0) {
+    //     av_frame_unref(latest_frame);
+    //     av_frame_move_ref(latest_frame, frame);
+    //     have_new_frame = true;
+    // }
+
+    // if (have_new_frame) {
+    //     UE_LOG(LogTemp, Error, TEXT("Have new frame!!!"));
         
-        // Set up destination pointers and linesizes
-        uint8_t* dest_data[4] = { nullptr };
-        int dest_linesize[4] = { 0 };
+    //     // Set up destination pointers and linesizes
+    //     uint8_t* dest_data[4] = { nullptr };
+    //     int dest_linesize[4] = { 0 };
 
-        av_image_fill_arrays(
-            dest_data,
-            dest_linesize,
-            buffer,
-            AV_PIX_FMT_BGRA,
-            texture_width,
-            texture_height,
-            1
-        );
+    //     av_image_fill_arrays(
+    //         dest_data,
+    //         dest_linesize,
+    //         buffer,
+    //         AV_PIX_FMT_BGRA,
+    //         texture_width,
+    //         texture_height,
+    //         1
+    //     );
         
-        // Convert the frame to BGRA
-        sws_scale(
-            swsCtx,
-            latest_frame->data,
-            latest_frame->linesize,
-            0,
-            src_height,
-            dest_data,
-            dest_linesize
-        );
-        UpdateTexture(dest_data[0], num_bytes);
-    }
+    //     // Convert the frame to BGRA
+    //     sws_scale(
+    //         swsCtx,
+    //         latest_frame->data,
+    //         latest_frame->linesize,
+    //         0,
+    //         src_height,
+    //         dest_data,
+    //         dest_linesize
+    //     );
+    //     UpdateTexture(dest_data[0], num_bytes);
+    // }
 
-    av_free(buffer);
+    // av_free(buffer);
 }
 
 void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
