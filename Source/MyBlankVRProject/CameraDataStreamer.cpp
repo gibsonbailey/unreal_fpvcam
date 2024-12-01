@@ -17,6 +17,17 @@ void UCameraDataStreamer::BeginPlay()
     // Start the worker thread
     StreamerRunnable = new FCameraDataStreamerRunnable(&DataQueue);
     StreamerThread = FRunnableThread::Create(StreamerRunnable, TEXT("CameraDataStreamerThread"));
+    
+    // Get camera rotation
+    APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+    
+    // Initialize Yaw
+    if (PlayerController && PlayerController->PlayerCameraManager)
+    {
+        FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+        PreviousYaw = CameraRotation.Yaw;
+        AccumulatedYaw = 0.0f;
+    }
 }
 
 void UCameraDataStreamer::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -55,8 +66,19 @@ void UCameraDataStreamer::TickComponent(float DeltaTime, ELevelTick TickType, FA
             {
                 FRotator CameraRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
                 
+                float DeltaYaw = CameraRotation.Yaw - PreviousYaw;
+                
+                if (DeltaYaw > 180.0f) {
+                    DeltaYaw -= 360.0f;
+                } else if (DeltaYaw < -180.f) {
+                    DeltaYaw += 360.0f;
+                }
+                
+                AccumulatedYaw += DeltaYaw;
+                PreviousYaw = CameraRotation.Yaw;
+                
                 // Prepare data to send
-                FString* DataToSend = new FString(FString::Printf(TEXT("%f,%f,%f"), CameraRotation.Pitch, CameraRotation.Yaw, CameraRotation.Roll));
+                FString* DataToSend = new FString(FString::Printf(TEXT("%f,%f,%f"), CameraRotation.Pitch, AccumulatedYaw, CameraRotation.Roll));
                 
                 // Enqueue the data
                 DataQueue.Enqueue(DataToSend);

@@ -15,8 +15,8 @@ ADynamicTextureActor::ADynamicTextureActor()
     frame(nullptr),
     latest_frame(nullptr),
     packet(nullptr),
-    texture_width(256),
-    texture_height(256),
+    texture_width(854),
+    texture_height(480),
     videoStreamIndex(-1),
     stream_initialized(false)
 {
@@ -64,9 +64,8 @@ ADynamicTextureActor::ADynamicTextureActor()
   PlaneMesh->SetUsingAbsoluteRotation(false);
   PlaneMesh->SetUsingAbsoluteLocation(false);
   PlaneMesh->SetRelativeLocation(FVector(200.0f, 0.0f, 0.0f));
-  // PlaneMesh->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
   PlaneMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, 90.0f));
-  PlaneMesh->SetRelativeScale3D(FVector(3.0f, 1.5f, 1.0f));
+  PlaneMesh->SetRelativeScale3D(FVector(4.0f, 1.3f, 1.0f));
   PlaneMesh->SetVisibility(true);
   PlaneMesh->SetHiddenInGame(false);
 }

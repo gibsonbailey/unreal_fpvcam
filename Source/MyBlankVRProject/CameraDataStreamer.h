@@ -27,5 +27,9 @@ private:
     TQueue<FString*, EQueueMode::Spsc> DataQueue;
     
     float TimeSinceLastSend = 0.0f;
-    float SendInterval = 0.1f;
+    float SendInterval = 0.001f;
+    
+    // Used to get rid of discontinuity at 0 - 360 degrees.
+    float PreviousYaw = 0.0f; // initialized in beginPlay
+    float AccumulatedYaw = 0.0f;
 };
