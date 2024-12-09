@@ -26,6 +26,7 @@ private:
     FString ServerIP;
     int32 ServerPort;
 
-    // Function to initialize socket
+    // Functions to manage socket
     bool InitializeSocket();
+    void DeconstructSocket();
 };
