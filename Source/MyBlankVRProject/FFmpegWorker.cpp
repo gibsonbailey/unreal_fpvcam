@@ -36,12 +36,17 @@ bool FFmpegWorker::Init()
 
 uint32 FFmpegWorker::Run()
 {
-    // Initialize FFmpeg components here or use Owner's initialization
-    int ret = Owner->InitializeUDPVideoStream();
-    if (ret == -1)
+    // Keep trying to initialize until success or stop requested
+    while (!bStopThread)
     {
-        UE_LOG(LogTemp, Error, TEXT("FFmpegWorker failed to initialize FFmpeg stream."));
-        return 1; // Exit thread
+        int ret = Owner->InitializeUDPVideoStream();
+        if (ret == 0)
+        {
+            break; // Initialization successful
+        }
+        
+        UE_LOG(LogTemp, Error, TEXT("Failed to initialize FFmpeg stream. Retrying in 1 second..."));
+        FPlatformProcess::Sleep(3.0f);
     }
 
     while (!bStopThread)
