@@ -121,11 +121,6 @@ void ADynamicTextureActor::BeginPlay()
     
     UE_LOG(LogTemp, Error, TEXT("Prepare to open UDP stream."));
 
-    // int ret = InitializeUDPVideoStream();
-    // if (ret == -1) {
-    //     UE_LOG(LogTemp, Error, TEXT("UDP Stream Failed to Open"));
-    // }
-
     bHasNewFrame = false;
     PendingFrameData = nullptr;
     PendingFrameSize = 0;
@@ -155,7 +150,14 @@ int ADynamicTextureActor::InitializeUDPVideoStream() {
     av_log_set_level(AV_LOG_DEBUG);
     
     int ret;
-    if ((ret = avformat_open_input(&formatContext, url, nullptr, nullptr)) != 0) {
+    // This can be passed a timeout parameter as the third argument
+    // if we did that, it would look like this: avformat_open_input(&formatContext, url, nullptr, &timeout);
+    // where timeout is a struct of type AVIOInterruptCB
+
+    AVDictionary* timeout = nullptr;
+    av_dict_set(&timeout, "timeout", "2000000", 0);  // 2 seconds
+    
+    if ((ret = avformat_open_input(&formatContext, url, nullptr, &timeout)) != 0) {
         UE_LOG(LogTemp, Error, TEXT("Error: Could not open UDP stream. %d"), ret);
         return -1;
     }
