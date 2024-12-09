@@ -4,11 +4,12 @@
 #include "HAL/Runnable.h"
 #include "Sockets.h"
 #include "SocketSubsystem.h"
+#include "CameraDataStreamer.h"
 
 class FCameraDataStreamerRunnable : public FRunnable
 {
 public:
-    FCameraDataStreamerRunnable(TQueue<FString*, EQueueMode::Spsc>* InDataQueue);
+    FCameraDataStreamerRunnable(TQueue<FCameraAngles*, EQueueMode::Spsc>* InDataQueue);
     virtual ~FCameraDataStreamerRunnable();
 
     // FRunnable interface
@@ -18,7 +19,7 @@ public:
 
 private:
     FThreadSafeBool bStopThread;
-    TQueue<FString*, EQueueMode::Spsc>* DataQueue;
+    TQueue<FCameraAngles*, EQueueMode::Spsc>* DataQueue;
 
     // Socket variables
     FSocket* Socket;

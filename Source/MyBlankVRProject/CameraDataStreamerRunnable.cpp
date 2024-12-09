@@ -1,7 +1,7 @@
 #include "CameraDataStreamerRunnable.h"
 #include "Networking.h"
 
-FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(TQueue<FString*, EQueueMode::Spsc>* InDataQueue)
+FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(TQueue<FCameraAngles*, EQueueMode::Spsc>* InDataQueue)
     : bStopThread(false), DataQueue(InDataQueue), Socket(nullptr), ServerIP(TEXT("192.168.0.3")), ServerPort(12345)
 {
 }
@@ -28,16 +28,18 @@ uint32 FCameraDataStreamerRunnable::Run()
 
     while (!bStopThread)
     {
-        FString* DataToSend = nullptr;
+        FCameraAngles* DataToSend = nullptr;
         if (DataQueue->Dequeue(DataToSend))
         {
-            // Convert FString to UTF8
-            FTCHARToUTF8 Convert(*DataToSend);
-            int32 Size = Convert.Length();
+            // Create byte array to send
+            uint8 Buffer[sizeof(float) * 2];
+            FMemory::Memcpy(Buffer, &DataToSend->Pitch, sizeof(float));
+            FMemory::Memcpy(Buffer + sizeof(float), &DataToSend->Yaw, sizeof(float));
+
             int32 Sent = 0;
 
             // Send data over the socket
-            Socket->Send((uint8*)Convert.Get(), Size, Sent);
+            Socket->Send(Buffer, sizeof(Buffer), Sent);
 
             // Clean up
             delete DataToSend;
@@ -45,7 +47,7 @@ uint32 FCameraDataStreamerRunnable::Run()
         else
         {
             // Sleep to prevent busy-waiting
-            FPlatformProcess::Sleep(0.005f);
+            FPlatformProcess::Sleep(0.002f);
         }
     }
 
