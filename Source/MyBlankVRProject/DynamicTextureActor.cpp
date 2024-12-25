@@ -319,66 +319,6 @@ void ADynamicTextureActor::Tick(float delta_time) {
             av_free(FrameData);
         }
     }
-    
-    // if (!stream_initialized) {
-    //     // UE_LOG(LogTemp, Error, TEXT("Tried to Tick, but not yet initialized."));
-    //     return;
-    // }
-    
-    // UE_LOG(LogTemp, Error, TEXT("Ticking..."));
-    
-    // int src_width = codecContext->width;
-    // int src_height = codecContext->height;
-    
-    // // int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGRA, src_width, src_height, 1);
-    // int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGRA, texture_width, texture_height, 1);
-    // uint8_t* buffer = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
-    
-    // if (av_read_frame(formatContext, packet) >= 0) {
-    //     if (packet->stream_index == videoStreamIndex) {
-    //         avcodec_send_packet(codecContext, packet);
-    //     }
-    //     av_packet_unref(packet);
-    // }
-
-    // bool have_new_frame = false;
-    // while (avcodec_receive_frame(codecContext, frame) == 0) {
-    //     av_frame_unref(latest_frame);
-    //     av_frame_move_ref(latest_frame, frame);
-    //     have_new_frame = true;
-    // }
-
-    // if (have_new_frame) {
-    //     UE_LOG(LogTemp, Error, TEXT("Have new frame!!!"));
-        
-    //     // Set up destination pointers and linesizes
-    //     uint8_t* dest_data[4] = { nullptr };
-    //     int dest_linesize[4] = { 0 };
-
-    //     av_image_fill_arrays(
-    //         dest_data,
-    //         dest_linesize,
-    //         buffer,
-    //         AV_PIX_FMT_BGRA,
-    //         texture_width,
-    //         texture_height,
-    //         1
-    //     );
-        
-    //     // Convert the frame to BGRA
-    //     sws_scale(
-    //         swsCtx,
-    //         latest_frame->data,
-    //         latest_frame->linesize,
-    //         0,
-    //         src_height,
-    //         dest_data,
-    //         dest_linesize
-    //     );
-    //     UpdateTexture(dest_data[0], num_bytes);
-    // }
-
-    // av_free(buffer);
 }
 
 void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
@@ -433,8 +373,6 @@ void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
 
     UE_LOG(LogTemp, Log, TEXT("Number of bytes: %d"), num_bytes);
 
-//    FMemory::Memcpy(Data, img_data, num_bytes);
-
     // Calculate the total number of pixels
     int32 total_pixels = texture_width * texture_height;
 
@@ -444,27 +382,8 @@ void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
         return;
     }
 
-    // Pointer to the pixel data
-    uint8* pixel_data = static_cast<uint8*>(Data);
-
-    // Override color: Red
-    uint32 override_color = 0xFF0000FF;
-
-    // Iterate over each pixel
-    for (int32 i = 0; i < total_pixels; ++i)
-    {
-        int32 pixel_index = i * 4; // 4 bytes per pixel
-
-        // pixel_data[pixel_index + 0] = override_color & 0xFF;
-        // pixel_data[pixel_index + 1] = (override_color >> 8) & 0xFF;
-        // pixel_data[pixel_index + 2] = (override_color >> 16) & 0xFF;
-        // pixel_data[pixel_index + 3] = (override_color >> 24) & 0xFF;
-
-        pixel_data[pixel_index + 0] = img_data[pixel_index + 0];
-        pixel_data[pixel_index + 1] = img_data[pixel_index + 1];
-        pixel_data[pixel_index + 2] = img_data[pixel_index + 2];
-        pixel_data[pixel_index + 3] = img_data[pixel_index + 3];
-    }
+    // Copy pixel data in bulk
+    FMemory::Memcpy(Data, img_data, num_bytes);
 
     // Unlock the bulk data
     Mip.BulkData.Unlock();

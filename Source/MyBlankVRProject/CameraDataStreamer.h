@@ -9,14 +9,17 @@
 #include "CameraDataStreamer.generated.h"
 
 
-struct FCameraAngles
+struct FRobotControlData
 {
     float Pitch;
     float Yaw;
 
+    float TriggerPosition;
+    float ThumbstickX;
+
     // Constructor for convenience
-    FCameraAngles(float InPitch = 0.0f, float InYaw = 0.0f)
-        : Pitch(InPitch), Yaw(InYaw) {}
+    FRobotControlData(float InPitch = 0.0f, float InYaw = 0.0f, float InTriggerPosition = 0.0f, float InThumbstickX = 0.0f)
+        : Pitch(InPitch), Yaw(InYaw), TriggerPosition(InTriggerPosition), ThumbstickX(InThumbstickX) {}
 };
 
 
@@ -44,13 +47,21 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
     UInputAction* IA_Hand_IndexCurl_Right;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+    UInputAction* IA_Hand_Thumbstick_Right;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+    UInputAction* IA_Hand_ThumbUp_Right;
+
     void HandleRightTriggerInput(const FInputActionValue& Value);
+    void HandleRightThumbstickInput(const FInputActionValue& Value);
+    void HandleRightThumbUpInput(const FInputActionValue& Value);
 
 private:
     class FCameraDataStreamerRunnable* StreamerRunnable;
     FRunnableThread* StreamerThread;
 
-    TQueue<FCameraAngles*, EQueueMode::Spsc> DataQueue;
+    TQueue<FRobotControlData*, EQueueMode::Spsc> DataQueue;
     
     float TimeSinceLastSend = 0.0f;
     float SendInterval = 0.02f;
@@ -62,5 +73,7 @@ private:
     float PreviousPitch = 0.0f; // initialized in beginPlay
     float AccumulatedPitch = 0.0f;
 
-    float CachedRightIndexCurlValue = 0.0121f;
+    float CachedRightIndexCurlValue = 0.0f;
+    float CachedRightThumbstickValue = 0.0f;
+    bool CachedRightThumbUpValue = false;
 };

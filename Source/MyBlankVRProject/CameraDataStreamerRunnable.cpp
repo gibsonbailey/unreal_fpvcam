@@ -1,8 +1,8 @@
 #include "CameraDataStreamerRunnable.h"
 #include "Networking.h"
 
-FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(TQueue<FCameraAngles*, EQueueMode::Spsc>* InDataQueue)
-    : bStopThread(false), DataQueue(InDataQueue), Socket(nullptr), ServerIP(TEXT("192.168.0.3")), ServerPort(12345)
+FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(TQueue<FRobotControlData*, EQueueMode::Spsc>* InDataQueue)
+    : bStopThread(false), DataQueue(InDataQueue), Socket(nullptr), ServerIP(TEXT("192.168.0.22")), ServerPort(12345)
 {
 }
 
@@ -34,16 +34,18 @@ uint32 FCameraDataStreamerRunnable::Run()
 
     while (!bStopThread)
     {
-        FCameraAngles* DataToSend = nullptr;
+        FRobotControlData* DataToSend = nullptr;
 
         while (DataQueue->Dequeue(DataToSend)) {}
 
         if (DataToSend)
         {
             // Create byte array to send
-            uint8 Buffer[sizeof(float) * 2];
+            uint8 Buffer[sizeof(float) * 4];
             FMemory::Memcpy(Buffer, &DataToSend->Pitch, sizeof(float));
             FMemory::Memcpy(Buffer + sizeof(float), &DataToSend->Yaw, sizeof(float));
+            FMemory::Memcpy(Buffer + (sizeof(float) * 2), &DataToSend->TriggerPosition, sizeof(float));
+            FMemory::Memcpy(Buffer + (sizeof(float) * 3), &DataToSend->ThumbstickX, sizeof(float));
 
             int32 Sent = 0;
 
