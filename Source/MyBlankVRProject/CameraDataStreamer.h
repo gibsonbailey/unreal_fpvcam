@@ -48,14 +48,14 @@ public:
     UInputAction* IA_Hand_IndexCurl_Right;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+    UInputAction* IA_Hand_IndexCurl_Left;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
     UInputAction* IA_Hand_Thumbstick_Right;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
     UInputAction* IA_Hand_ThumbUp_Right;
 
-    void HandleRightTriggerInput(const FInputActionValue& Value);
-    void HandleRightThumbstickInput(const FInputActionValue& Value);
-    void HandleRightThumbUpInput(const FInputActionValue& Value);
 
 private:
     class FCameraDataStreamerRunnable* StreamerRunnable;
