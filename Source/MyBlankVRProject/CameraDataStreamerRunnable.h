@@ -22,8 +22,7 @@ private:
     TQueue<FRobotControlData*, EQueueMode::Spsc>* DataQueue;
 
     // Socket variables
-    FSocket* Socket;
-    FString ServerIP;
+    FSocket* ListenSocket;
     int32 ServerPort;
 
     // Functions to manage socket
