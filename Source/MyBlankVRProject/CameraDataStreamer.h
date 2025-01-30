@@ -54,8 +54,10 @@ public:
     UInputAction* IA_Hand_Thumbstick_Right;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
-    UInputAction* IA_Hand_ThumbUp_Right;
+    UInputAction* IA_Turbo_Throttle;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+    UInputAction* IA_Pause_Camera_Motors;
 
 private:
     class FCameraDataStreamerRunnable* StreamerRunnable;

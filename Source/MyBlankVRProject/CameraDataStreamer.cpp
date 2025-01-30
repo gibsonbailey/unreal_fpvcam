@@ -80,44 +80,46 @@ void UCameraDataStreamer::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
                 PreviousYaw = CameraRotation.Yaw;
                 PreviousPitch = CameraRotation.Pitch;
-                
-                // Do not accumulate the yaw and pitch if the right B button is pressed
-                // This allows the user to manually recalibrate the camera
-                if (true)
+
+                UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+                if (Subsystem)
                 {
-                    AccumulatedYaw += DeltaYaw;
-                    AccumulatedPitch += DeltaPitch;
 
-                    UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
-                    if (Subsystem)
+                    // Do not accumulate the yaw and pitch if the left X button is pressed
+                    // This allows the user to manually recalibrate the camera
+                    if (!Subsystem->GetPlayerInput()->GetActionValue(IA_Pause_Camera_Motors).Get<bool>())
                     {
-                        // Get right trigger value
-                        FInputActionValue CurrentRightTriggerPositionValue = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_IndexCurl_Right);
-                        CachedRightIndexCurlValue = CurrentRightTriggerPositionValue.Get<float>();
-
-                        // Get left trigger value
-                        FInputActionValue CurrentLeftTriggerPositionValue = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_IndexCurl_Left);
-                        float CachedLeftIndexCurlValue = CurrentLeftTriggerPositionValue.Get<float>();
-
-                        // Left and right trigger values cancel each other out
-                        CachedRightIndexCurlValue -= CachedLeftIndexCurlValue;
-
-                        // IA_Hand_ThumbUp_Right
-                        FInputActionValue AButtonPressed = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_ThumbUp_Right);
-                        CachedRightThumbUpValue = AButtonPressed.Get<bool>();
-
-                        // If A button is pressed, exagerate the throttle value
-                        if (CachedRightThumbUpValue) {
-                           CachedRightIndexCurlValue *= 1.5f;
-                        }
-
-                        FInputActionValue CurrentThumbstickValue = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_Thumbstick_Right);
-                        CachedRightThumbstickValue = CurrentThumbstickValue.Get<float>();
+                        AccumulatedYaw += DeltaYaw;
+                        AccumulatedPitch += DeltaPitch;
                     }
 
-                    // Enqueue the data
-                    DataQueue.Enqueue(new FRobotControlData(AccumulatedPitch, AccumulatedYaw, CachedRightIndexCurlValue, CachedRightThumbstickValue));
+                    // Get right trigger value
+                    FInputActionValue CurrentRightTriggerPositionValue = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_IndexCurl_Right);
+                    CachedRightIndexCurlValue = CurrentRightTriggerPositionValue.Get<float>();
+
+                    // Get left trigger value
+                    FInputActionValue CurrentLeftTriggerPositionValue = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_IndexCurl_Left);
+                    float CachedLeftIndexCurlValue = CurrentLeftTriggerPositionValue.Get<float>();
+
+                    // Left and right trigger values cancel each other out
+                    CachedRightIndexCurlValue -= CachedLeftIndexCurlValue;
+
+                    // IA_Turbo_Throttle
+                    FInputActionValue AButtonPressed = Subsystem->GetPlayerInput()->GetActionValue(IA_Turbo_Throttle);
+                    CachedRightThumbUpValue = AButtonPressed.Get<bool>();
+
+                    // If A button is not pressed, then depress throttle
+                    if (!CachedRightThumbUpValue) {
+                       CachedRightIndexCurlValue *= .45f;
+                    }
+
+                    FInputActionValue CurrentThumbstickValue = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_Thumbstick_Right);
+                    CachedRightThumbstickValue = CurrentThumbstickValue.Get<float>();
                 }
+
+                // Enqueue the data
+                DataQueue.Enqueue(new FRobotControlData(AccumulatedPitch, AccumulatedYaw, CachedRightIndexCurlValue, CachedRightThumbstickValue));
+                
                 UE_LOG(LogTemp, Warning, TEXT("RightIndexCurlValue: %f"), CachedRightIndexCurlValue);
             }
         }
