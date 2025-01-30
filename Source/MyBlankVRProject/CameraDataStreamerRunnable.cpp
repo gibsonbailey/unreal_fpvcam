@@ -1,5 +1,10 @@
 #include "CameraDataStreamerRunnable.h"
 #include "Networking.h"
+#include "HttpModule.h"
+#include "interfaces/IHttpRequest.h"
+#include "interfaces/IHttpResponse.h"
+#include "Sockets.h"
+#include "SocketSubsystem.h"
 
 FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(TQueue<FRobotControlData*, EQueueMode::Spsc>* InDataQueue)
     : bStopThread(false), DataQueue(InDataQueue), ListenSocket(nullptr), ServerPort(12345)
@@ -21,6 +26,67 @@ void FCameraDataStreamerRunnable::DeconstructSocket()
 }
 
 
+void FCameraDataStreamerRunnable::SendServerAnnouncement()
+{
+    // 1) Get local IP
+    bool bCanBindAll;
+    TSharedRef<FInternetAddr> LocalAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLocalHostAddr(*GLog, bCanBindAll);
+    FString LocalIP = LocalAddr->IsValid() ? LocalAddr->ToString(false) : TEXT("UnknownLocalIP");
+
+    // 2) Get public IP from a simple external service
+    TSharedRef<IHttpRequest> PublicIPRequest = FHttpModule::Get().CreateRequest();
+    PublicIPRequest->SetURL(TEXT("https://api.ipify.org?format=text")); // or another service you prefer
+    PublicIPRequest->SetVerb(TEXT("GET"));
+    
+    PublicIPRequest->OnProcessRequestComplete().BindLambda(
+        [this, LocalIP](FHttpRequestPtr Request, FHttpResponsePtr Response, bool bConnectedSuccessfully)
+        {
+            if (!bConnectedSuccessfully || !Response.IsValid())
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Failed to retrieve public IP."));
+                return;
+            }
+
+            FString PublicIP = Response->GetContentAsString();
+            UE_LOG(LogTemp, Log, TEXT("Local IP: %s, Public IP: %s"), *LocalIP, *PublicIP);
+
+            // 3) Now POST to http://{IP}:{PORT}/server with the JSON payload
+            FString ServerIP = TEXT("192.168.0.14");  // hard-coded server to notify
+            FString PostURL = FString::Printf(TEXT("http://%s:%d/server"), *ServerIP, 4337);
+
+            TSharedRef<IHttpRequest> PostRequest = FHttpModule::Get().CreateRequest();
+            PostRequest->SetURL(PostURL);
+            PostRequest->SetVerb(TEXT("POST"));
+            PostRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+
+            FString Payload = FString::Printf(
+                TEXT("{\"server_port\":\"12345\",\"server_local_ip\":\"%s\",\"server_public_ip\":\"%s\"}"),
+                *LocalIP, *PublicIP
+            );
+            PostRequest->SetContentAsString(Payload);
+
+            PostRequest->OnProcessRequestComplete().BindLambda(
+                [](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bConn)
+                {
+                    if (bConn && Resp.IsValid())
+                    {
+                        UE_LOG(LogTemp, Log, TEXT("POST response: %s"), *Resp->GetContentAsString());
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("POST failed."));
+                    }
+                }
+            );
+            PostRequest->ProcessRequest();
+        }
+    );
+
+    // Start the GET to find public IP
+    PublicIPRequest->ProcessRequest();
+}
+
+
 bool FCameraDataStreamerRunnable::Init()
 {
     // Initialize the socket connection
@@ -30,6 +96,8 @@ bool FCameraDataStreamerRunnable::Init()
 
 uint32 FCameraDataStreamerRunnable::Run()
 {
+    SendServerAnnouncement();
+
     FSocket* ClientSocket = nullptr;
 
     while (!bStopThread)

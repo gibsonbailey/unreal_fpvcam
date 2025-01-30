@@ -28,4 +28,5 @@ private:
     // Functions to manage socket
     bool InitializeSocket();
     void DeconstructSocket();
+    void SendServerAnnouncement();
 };
