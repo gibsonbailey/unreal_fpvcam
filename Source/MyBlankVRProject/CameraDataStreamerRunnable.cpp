@@ -51,7 +51,7 @@ void FCameraDataStreamerRunnable::SendServerAnnouncement()
             UE_LOG(LogTemp, Log, TEXT("Local IP: %s, Public IP: %s"), *LocalIP, *PublicIP);
 
             // 3) Now POST to http://{IP}:{PORT}/server with the JSON payload
-            FString ServerIP = TEXT("192.168.0.14");  // hard-coded server to notify
+            FString ServerIP = TEXT("3.215.138.208");  // hard-coded server to notify
             FString PostURL = FString::Printf(TEXT("http://%s:%d/server"), *ServerIP, 4337);
 
             TSharedRef<IHttpRequest> PostRequest = FHttpModule::Get().CreateRequest();
