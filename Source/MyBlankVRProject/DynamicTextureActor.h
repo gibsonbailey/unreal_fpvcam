@@ -31,6 +31,7 @@ public:
 
     // ffmpeg
     AVFormatContext* formatContext;
+    AVIOContext* avio_ctx;
     struct SwsContext* swsCtx;
     AVCodecContext* codecContext;
     AVFrame* frame;

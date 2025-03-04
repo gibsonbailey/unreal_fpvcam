@@ -38,11 +38,28 @@ protected:
 public:
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+    float SpeedMph = 0;
+    float DistanceFeet = 0;
+    int ControlBatteryPercentage = 0;
+    int DriveBatteryPercentage = 0;
+
     UFUNCTION(BlueprintCallable, Category = "Camera Data Streamer")
     float GetAccumulatedYaw() const;
 
     UFUNCTION(BlueprintCallable, Category = "Camera Data Streamer")
     float GetAccumulatedPitch() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Camera Data Streamer")
+    float GetSpeedMph() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Camera Data Streamer")
+    float GetDistanceFeet() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Camera Data Streamer")
+    int GetControlBatteryPercentage() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Camera Data Streamer")
+    int GetDriveBatteryPercentage() const;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
     UInputAction* IA_Hand_IndexCurl_Right;

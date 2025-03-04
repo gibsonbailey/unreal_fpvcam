@@ -6,8 +6,8 @@
 #include "Sockets.h"
 #include "SocketSubsystem.h"
 
-FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(TQueue<FRobotControlData*, EQueueMode::Spsc>* InDataQueue)
-    : bStopThread(false), DataQueue(InDataQueue), ListenSocket(nullptr), ServerPort(12345)
+FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(TQueue<FRobotControlData*, EQueueMode::Spsc>* InDataQueue, UCameraDataStreamer* InStreamer)
+    : bStopThread(false), DataQueue(InDataQueue), Streamer(InStreamer), ListenSocket(nullptr), ServerPort(12345)
 {
 }
 
@@ -100,33 +100,184 @@ uint32 FCameraDataStreamerRunnable::Run()
 
     FSocket* ClientSocket = nullptr;
 
+    int32 system_time_calibration_counter = 0;
+    int32 system_time_calibration_required_samples = 20;
+    TArray<int64> sample_offsets;
+    int64 average_offset = 0;
+    bool isCalibrated = false;
+
+    // Variable to hold the last time speed and distance data was received
+    double lastDataReceivedTime = FPlatformTime::Seconds();
+
     while (!bStopThread)
     {
         // Accept if we don't already have a client
         if (!ClientSocket)
         {
+            UE_LOG(LogTemp, Log, TEXT("Waiting for client connection..."));
             ClientSocket = ListenSocket->Accept(TEXT("IncomingClient"));
             if (ClientSocket)
             {
                 UE_LOG(LogTemp, Log, TEXT("Client connected!"));
                 ClientSocket->SetNonBlocking(false);
+
+                UE_LOG(LogTemp, Log, TEXT("Calibrating system time..."));
+                for (int i = 0; i < system_time_calibration_required_samples && !bStopThread; i++)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Calibrating system time... sample %d"), i);
+                    uint8 Buffer[sizeof(uint64) + (sizeof(float) * 4)];
+                    // Get timestamp from system in milliseconds
+                    uint64 zerouint64 = 0;
+                    float zerofloat = 0.0f;
+
+                    UE_LOG(LogTemp, Log, TEXT("Copying data to buffer... %d"), i);
+
+                    FMemory::Memcpy(Buffer, &zerouint64, sizeof(uint64));
+                    FMemory::Memcpy(Buffer + sizeof(uint64), &zerofloat, sizeof(float));
+                    FMemory::Memcpy(Buffer + sizeof(uint64) + sizeof(float), &zerofloat, sizeof(float));
+                    FMemory::Memcpy(Buffer + sizeof(uint64) + (sizeof(float) * 2), &zerofloat, sizeof(float));
+                    FMemory::Memcpy(Buffer + sizeof(uint64) + (sizeof(float) * 3), &zerofloat, sizeof(float));
+
+                    UE_LOG(LogTemp, Log, TEXT("Copy complete. %d"), i);
+
+                    int32 Sent = 0;
+                    uint64 t1 = FDateTime::UtcNow().ToUnixTimestamp() * 1000;
+                    bool bSendSuccess = ClientSocket->Send(Buffer, sizeof(Buffer), Sent);
+
+                    UE_LOG(LogTemp, Log, TEXT("Sent %d bytes to client. %d"), Sent, i);
+                    
+                    // Receive the timestamp from the client
+                    uint8 ReceiveBuffer[sizeof(uint64) + (sizeof(float) * 2)];
+                    int32 BytesRead = 0;
+                    bool bReceived = ClientSocket->Recv(ReceiveBuffer, sizeof(ReceiveBuffer), BytesRead);
+                    uint64 t4 = FDateTime::UtcNow().ToUnixTimestamp() * 1000;
+                  
+                    UE_LOG(LogTemp, Log, TEXT("Received %d bytes from client. %d"), BytesRead, i);
+                    
+                    if (bReceived && BytesRead == sizeof(ReceiveBuffer))
+                    {
+                        UE_LOG(LogTemp, Log, TEXT("Received timestamp from client. %d"), i);
+              
+                        uint64 t_client;
+                        FMemory::Memcpy(&t_client, ReceiveBuffer, sizeof(uint64));
+
+
+                        UE_LOG(LogTemp, Log, TEXT("copied timestamp from client. %d"), i);
+                        
+                        // UE_LOG(LogTemp, Log, TEXT("t1: %d, t_client: %d, t4: %d"), t1, t_client, t4);
+                        int64 diff1 = static_cast<int64>(t_client) - static_cast<int64>(t1);
+                        int64 diff2 = static_cast<int64>(t4) - static_cast<int64>(t_client);
+                        
+                        // int64 offset = ((t_client - t1) + (t_client - t4)) / 2;
+                        int64 offset = (diff1 + diff2) / 2;
+                        sample_offsets.Add(offset);
+
+                        UE_LOG(LogTemp, Log, TEXT("offset: %d %d"), offset, i);
+                    } else {
+                        UE_LOG(LogTemp, Log, TEXT("Failed to receive timestamp from client."));
+                        break;
+                    }
+
+                    FPlatformProcess::Sleep(0.01f);
+                }
+                    
+                if (sample_offsets.Num() >= system_time_calibration_required_samples)
+                {
+                    // UE_LOG(LogTemp, Log, TEXT("avg_offset System time calibration complete. Calculating average offset..."));
+                    // Calculate the average offset
+                    int64 sum = 0;
+                    for (int sample_offset_index = 0; sample_offset_index < sample_offsets.Num(); sample_offset_index++)
+                    {
+                        sum += sample_offsets[sample_offset_index];
+                    }
+                    // UE_LOG(LogTemp, Log, TEXT("avg_offset Sum of offsets: %d"), sum);
+                    // UE_LOG(LogTemp, Log, TEXT("avg_offset Number of samples: %d"), sample_offsets.Num());
+                    average_offset = int64(sum / sample_offsets.Num());
+                    // UE_LOG(LogTemp, Log, TEXT("avg_offset: %d"), average_offset);
+                    isCalibrated = true;
+                    UE_LOG(LogTemp, Log, TEXT("System time calibration complete. Average offset: %d"), average_offset);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Log, TEXT("System time calibration failed. Not enough samples."));
+                    // Calibration failed
+                    ClientSocket->Close();
+                    ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(ClientSocket);
+                    ClientSocket = nullptr;
+                    continue;
+                }
+
+                ClientSocket->SetNonBlocking(true);
             }
         }
-
-        // If we have a client, try sending data
-        if (ClientSocket)
+        else if (ClientSocket && isCalibrated)
         {
+            // Set non-blocking mode
+            ClientSocket->SetNonBlocking(true);
+
+            // Receive data from the client
+            uint8 ReceiveBuffer[sizeof(uint64) + (sizeof(float) * 2) + (sizeof(int) * 2)];
+            int32 BytesRead = 0;
+        
+            bool bReceived = ClientSocket->Recv(ReceiveBuffer, sizeof(ReceiveBuffer), BytesRead);
+
+            UE_LOG(LogTemp, Log, TEXT("Received speed data from client: %d bytes"), BytesRead);
+            
+            if (bReceived && BytesRead == sizeof(ReceiveBuffer))
+            {
+                // Extract the data from the buffer
+                uint64 placeholder;
+                float speed_mph;
+                float distance_ft;
+                int control_battery_percentage;
+                int drive_battery_percentage;
+
+                FMemory::Memcpy(&placeholder, ReceiveBuffer, sizeof(uint64));
+                FMemory::Memcpy(&speed_mph, ReceiveBuffer + sizeof(uint64), sizeof(float));
+                FMemory::Memcpy(&distance_ft, ReceiveBuffer + sizeof(uint64) + sizeof(float), sizeof(float));
+                FMemory::Memcpy(&control_battery_percentage, ReceiveBuffer + sizeof(uint64) + (sizeof(float) * 2), sizeof(int));
+                FMemory::Memcpy(&drive_battery_percentage, ReceiveBuffer + sizeof(uint64) + (sizeof(float) * 2) + sizeof(int), sizeof(int));
+
+                UE_LOG(LogTemp, Log, TEXT("telemetry data copied: %f, %f, %d, %d"), speed_mph, distance_ft, control_battery_percentage, drive_battery_percentage);
+
+                AsyncTask(ENamedThreads::GameThread, [this, speed_mph, distance_ft, control_battery_percentage, drive_battery_percentage]()
+                {
+                    Streamer->SpeedMph = speed_mph;
+                    Streamer->DistanceFeet = distance_ft;
+                    Streamer->ControlBatteryPercentage = control_battery_percentage;
+                    Streamer->DriveBatteryPercentage = drive_battery_percentage;
+                });
+
+                UE_LOG(LogTemp, Log, TEXT("Telemetry receive async task triggered"));
+                
+                lastDataReceivedTime = FPlatformTime::Seconds();
+            }
+             
+            // If it's been more than 0.25 seconds since the last data was received, reset the speed and distance to 0
+            if (FPlatformTime::Seconds() - lastDataReceivedTime > 1)
+            {
+                AsyncTask(ENamedThreads::GameThread, [this]()
+                {
+                    Streamer->SpeedMph = 0.0f;
+                    Streamer->DistanceFeet = 0.0f;
+                });
+            }
+
             FRobotControlData* DataToSend = nullptr;
             while (DataQueue->Dequeue(DataToSend)) {}
 
             if (DataToSend)
             {
                 // Create byte array to send
-                uint8 Buffer[sizeof(float) * 4];
-                FMemory::Memcpy(Buffer, &DataToSend->Pitch, sizeof(float));
-                FMemory::Memcpy(Buffer + sizeof(float), &DataToSend->Yaw, sizeof(float));
-                FMemory::Memcpy(Buffer + (sizeof(float) * 2), &DataToSend->TriggerPosition, sizeof(float));
-                FMemory::Memcpy(Buffer + (sizeof(float) * 3), &DataToSend->ThumbstickX, sizeof(float));
+                // 1 unsigned long long int (8 bytes) + 3 floats (4 bytes each)
+                uint8 Buffer[sizeof(uint64) + (sizeof(float) * 4)];
+                // Get timestamp from system in milliseconds
+                uint64 timeStamp = (FDateTime::UtcNow().ToUnixTimestamp() * 1000) + average_offset;
+                FMemory::Memcpy(Buffer, &timeStamp, sizeof(uint64));
+                FMemory::Memcpy(Buffer + sizeof(uint64), &DataToSend->Pitch, sizeof(float));
+                FMemory::Memcpy(Buffer + sizeof(uint64) + sizeof(float), &DataToSend->Yaw, sizeof(float));
+                FMemory::Memcpy(Buffer + sizeof(uint64) + (sizeof(float) * 2), &DataToSend->TriggerPosition, sizeof(float));
+                FMemory::Memcpy(Buffer + sizeof(uint64) + (sizeof(float) * 3), &DataToSend->ThumbstickX, sizeof(float));
 
                 int32 Sent = 0;
                 bool bSendSuccess = ClientSocket->Send(Buffer, sizeof(Buffer), Sent);
@@ -157,65 +308,10 @@ uint32 FCameraDataStreamerRunnable::Run()
     {
         ClientSocket->Close();
         ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(ClientSocket);
+        ClientSocket = nullptr;
     }
     return 0;
 }
-
-// uint32 FCameraDataStreamerRunnable::Run()
-// {
-//     // Set the thread to highest priority
-//     FPlatformProcess::SetThreadPriority(EThreadPriority::TPri_Highest);
-
-//     while (!bStopThread)
-//     {
-//         FRobotControlData* DataToSend = nullptr;
-
-//         while (DataQueue->Dequeue(DataToSend)) {}
-
-//         if (DataToSend)
-//         {
-//             // Create byte array to send
-//             uint8 Buffer[sizeof(float) * 4];
-//             FMemory::Memcpy(Buffer, &DataToSend->Pitch, sizeof(float));
-//             FMemory::Memcpy(Buffer + sizeof(float), &DataToSend->Yaw, sizeof(float));
-//             FMemory::Memcpy(Buffer + (sizeof(float) * 2), &DataToSend->TriggerPosition, sizeof(float));
-//             FMemory::Memcpy(Buffer + (sizeof(float) * 3), &DataToSend->ThumbstickX, sizeof(float));
-
-//             int32 Sent = 0;
-
-//             UE_LOG(LogTemp, Warning, TEXT("Socket connection state: %d"), Socket->GetConnectionState());
-
-//             // Send data over the socket
-//             bool bSendSuccess = Socket->Send(Buffer, sizeof(Buffer), Sent);
-
-//             // Clean up
-//             delete DataToSend;
-
-//             // If the send failed, attempt to reconnect
-//             if (!bSendSuccess)
-//             {
-//                 UE_LOG(LogTemp, Warning, TEXT("Socket connection lost. Reconnecting..."));
-
-//                 DeconstructSocket();
-
-//                 // Reconnect
-//                 if (!InitializeSocket())
-//                 {
-//                     // Sleep to prevent busy-waiting
-//                     FPlatformProcess::Sleep(0.002f);
-//                     continue;
-//                 }
-//             }
-//         }
-//         else
-//         {
-//             // Sleep to prevent busy-waiting
-//             FPlatformProcess::Sleep(0.002f);
-//         }
-//     }
-
-//     return 0;
-// }
 
 void FCameraDataStreamerRunnable::Stop()
 {

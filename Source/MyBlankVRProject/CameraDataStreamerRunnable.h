@@ -9,7 +9,7 @@
 class FCameraDataStreamerRunnable : public FRunnable
 {
 public:
-    FCameraDataStreamerRunnable(TQueue<FRobotControlData*, EQueueMode::Spsc>* InDataQueue);
+    FCameraDataStreamerRunnable(TQueue<FRobotControlData*, EQueueMode::Spsc>* InDataQueue, UCameraDataStreamer* InStreamer);
     virtual ~FCameraDataStreamerRunnable();
 
     // FRunnable interface
@@ -20,6 +20,7 @@ public:
 private:
     FThreadSafeBool bStopThread;
     TQueue<FRobotControlData*, EQueueMode::Spsc>* DataQueue;
+    UCameraDataStreamer* Streamer;
 
     // Socket variables
     FSocket* ListenSocket;

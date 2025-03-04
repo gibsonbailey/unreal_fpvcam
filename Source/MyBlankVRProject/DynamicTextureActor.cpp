@@ -10,6 +10,7 @@
 // Sets default values
 ADynamicTextureActor::ADynamicTextureActor()
     : formatContext(nullptr),
+    avio_ctx(nullptr),
     swsCtx(nullptr),
     codecContext(nullptr),
     frame(nullptr),
@@ -138,27 +139,76 @@ void ADynamicTextureActor::BeginPlay()
     }
 }
 
+struct BufferData {
+    const uint8_t *ptr;
+    size_t size;
+};
+
+// Read callback for the in-memory buffer
+static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
+    BufferData *bd = (BufferData *)opaque;
+    int len = FFMIN(buf_size, bd->size);
+    if(len == 0)
+        return AVERROR_EOF;
+    memcpy(buf, bd->ptr, len);
+    bd->ptr  += len;
+    bd->size -= len;
+    return len;
+}
+
 int ADynamicTextureActor::InitializeUDPVideoStream() {
     UE_LOG(LogTemp, Error, TEXT("Network init..."));
     
     avformat_network_init();
 
-    const char* url = "udp://@:5253";  // Listen on all network interfaces, port 5000
+    // SDP description embedded as a string.
+    const char *sdp_data =
+        "v=0\n"
+        // "o=- 0 0 IN IP4 192.168.0.22\n"   // Use the streaming machine's IP.
+        "o=- 0 0 IN IP4 0.0.0.0\n"   // Use the streaming machine's IP.
+        "s=No Name\n"
+        // "c=IN IP4 192.168.1.22\n"
+        "c=IN IP4 0.0.0.0\n"
+        "t=0 0\n"
+        "a=tool:libavformat\n"
+        "m=video 5253 RTP/AVP 96\n"
+        "a=rtpmap:96 H264/90000\n";
 
-    UE_LOG(LogTemp, Error, TEXT("Opening UDP Stream: %hs"), url);
-    
-    av_log_set_level(AV_LOG_DEBUG);
-    
-    int ret;
-    // This can be passed a timeout parameter as the third argument
-    // if we did that, it would look like this: avformat_open_input(&formatContext, url, nullptr, &timeout);
-    // where timeout is a struct of type AVIOInterruptCB
+    // Initialize buffer data structure
+    BufferData  bd;
+    bd.ptr = (const uint8_t*)sdp_data;
+    bd.size = strlen(sdp_data);
 
-    AVDictionary* timeout = nullptr;
-    av_dict_set(&timeout, "timeout", "2000000", 0);  // 2 seconds
-    
-    if ((ret = avformat_open_input(&formatContext, url, nullptr, &timeout)) != 0) {
-        UE_LOG(LogTemp, Error, TEXT("Error: Could not open UDP stream. %d"), ret);
+    // Allocate buffer for AVIOContext (you can choose an appropriate size)
+    const int buffer_size = 4096;
+    uint8_t *avio_buffer = (uint8_t*)av_malloc(buffer_size);
+    if (!avio_buffer) {
+        UE_LOG(LogTemp, Error, TEXT("Could not allocate avio buffer."));
+        return -1;
+    }
+
+    // Create custom AVIOContext.
+    avio_ctx = avio_alloc_context(
+        avio_buffer, buffer_size,
+        0, // write_flag = 0 (read-only)
+        &bd, // opaque pointer to our BufferData
+        read_packet, // our read callback
+        nullptr, // no write callback
+        nullptr  // no seek callback
+    );
+    if (!avio_ctx) {
+        UE_LOG(LogTemp, Error, TEXT("Could not allocate AVIOContext."));
+        av_free(avio_buffer);
+        return -1;
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("Opening UDP stream."));
+
+    formatContext = avformat_alloc_context();
+    formatContext->pb = avio_ctx;
+
+    if (avformat_open_input(&formatContext, nullptr, nullptr, nullptr) != 0) {
+        UE_LOG(LogTemp, Error, TEXT("Error: Could not open UDP stream."));
         return -1;
     }
 
@@ -169,21 +219,25 @@ int ADynamicTextureActor::InitializeUDPVideoStream() {
         return -1;
     }
 
-    UE_LOG(LogTemp, Error, TEXT("Found stream information."));
-    UE_LOG(LogTemp, Error, TEXT("Number of streams: %d"), formatContext->nb_streams);
+    UE_LOG(LogTemp, Warning, TEXT("Found stream information."));
+    UE_LOG(LogTemp, Warning, TEXT("Number of streams: %d"), formatContext->nb_streams);
 
     const AVCodec* codec = nullptr;
     for (unsigned int i = 0; i < formatContext->nb_streams; i++) {
+        UE_LOG(LogTemp, Warning, TEXT("Stream %d: codec_id=%d"), i, formatContext->streams[i]->codecpar->codec_id);
         if (formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             videoStreamIndex = i;
             codec = avcodec_find_decoder(formatContext->streams[i]->codecpar->codec_id);
             break;
         }
+        UE_LOG(LogTemp, Warning, TEXT("Stream %d: type=%d"), i, formatContext->streams[i]->codecpar->codec_type);
     }
     if (videoStreamIndex == -1) {
         UE_LOG(LogTemp, Error, TEXT("Error: Could not find a video stream."));
         return -1;
     }
+
+    UE_LOG(LogTemp, Warning, TEXT("Found video stream."));
 
     codecContext = avcodec_alloc_context3(codec);
     avcodec_parameters_to_context(codecContext, formatContext->streams[videoStreamIndex]->codecpar);
@@ -210,6 +264,8 @@ int ADynamicTextureActor::InitializeUDPVideoStream() {
     );
     
     stream_initialized = true;
+    
+    UE_LOG(LogTemp, Warning, TEXT("UDP video stream initialized successfully."));
     
     return 0;
 }
@@ -270,6 +326,12 @@ void ADynamicTextureActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
         avformat_close_input(&formatContext);
         formatContext = nullptr;
     }
+    if (avio_ctx)
+    {
+        av_freep(&avio_ctx->buffer);
+        avio_context_free(&avio_ctx);
+        avio_ctx = nullptr;
+    }
 
     // Deinitialize network components
     avformat_network_deinit();
@@ -322,7 +384,7 @@ void ADynamicTextureActor::Tick(float delta_time) {
 }
 
 void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
-    UE_LOG(LogTemp, Log, TEXT("Updating texture..."));
+    // UE_LOG(LogTemp, Log, TEXT("Updating texture..."));
 
     if (img_data == nullptr || num_bytes == 0)
     {
@@ -342,10 +404,10 @@ void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
     // Access the first mipmap level
     FTexture2DMipMap& Mip = PlatformData->Mips[0];
 
-    UE_LOG(LogTemp, Log, TEXT("Mip width: %d, height: %d"), Mip.SizeX, Mip.SizeY);
+    // UE_LOG(LogTemp, Log, TEXT("Mip width: %d, height: %d"), Mip.SizeX, Mip.SizeY);
 
     // Print bulk data size
-    UE_LOG(LogTemp, Log, TEXT("Bulk data size: %d"), Mip.BulkData.GetBulkDataSize());
+    // UE_LOG(LogTemp, Log, TEXT("Bulk data size: %d"), Mip.BulkData.GetBulkDataSize());
 
     if (Mip.BulkData.GetBulkDataSize() == 0)
     {
@@ -362,7 +424,7 @@ void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
     // Lock the mipmap's bulk data for read/write access
     void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
 
-    UE_LOG(LogTemp, Log, TEXT("Data pointer: %p"), Data);
+    // UE_LOG(LogTemp, Log, TEXT("Data pointer: %p"), Data);
 
     if (!Data)
     {
@@ -371,12 +433,13 @@ void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
     }
 
 
-    UE_LOG(LogTemp, Log, TEXT("Number of bytes: %d"), num_bytes);
+    // UE_LOG(LogTemp, Log, TEXT("Number of bytes: %d"), num_bytes);
 
     // Calculate the total number of pixels
     int32 total_pixels = texture_width * texture_height;
 
     if (total_pixels * 4 != num_bytes) {
+        Mip.BulkData.Unlock();
         UE_LOG(LogTemp, Error, TEXT("Number of bytes does not match expected number of pixels."));
         UE_LOG(LogTemp, Error, TEXT("Expected: %d, Actual: %d"), total_pixels * 4, num_bytes);
         return;
@@ -391,5 +454,5 @@ void ADynamicTextureActor::UpdateTexture(uint8_t* img_data, int num_bytes) {
     // Update the texture resource to apply changes
     DynamicTexture->UpdateResource();
 
-    UE_LOG(LogTemp, Error, TEXT("Texture updated."));
+    // UE_LOG(LogTemp, Log, TEXT("Texture updated."));
 }

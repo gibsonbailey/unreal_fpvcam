@@ -16,7 +16,7 @@ void UCameraDataStreamer::BeginPlay()
     Super::BeginPlay();
 
     // Start the worker thread
-    StreamerRunnable = new FCameraDataStreamerRunnable(&DataQueue);
+    StreamerRunnable = new FCameraDataStreamerRunnable(&DataQueue, this);
     StreamerThread = FRunnableThread::Create(StreamerRunnable, TEXT("CameraDataStreamerThread"));
     
     // Get camera rotation
@@ -115,12 +115,12 @@ void UCameraDataStreamer::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
                     FInputActionValue CurrentThumbstickValue = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_Thumbstick_Right);
                     CachedRightThumbstickValue = CurrentThumbstickValue.Get<float>();
+
+                    UE_LOG(LogTemp, Log, TEXT("Streamer Speed: %f, Distance: %f"), SpeedMph, DistanceFeet);
                 }
 
                 // Enqueue the data
                 DataQueue.Enqueue(new FRobotControlData(AccumulatedPitch, AccumulatedYaw, CachedRightIndexCurlValue, CachedRightThumbstickValue));
-                
-                UE_LOG(LogTemp, Warning, TEXT("RightIndexCurlValue: %f"), CachedRightIndexCurlValue);
             }
         }
     }
@@ -134,4 +134,24 @@ float UCameraDataStreamer::GetAccumulatedYaw() const
 float UCameraDataStreamer::GetAccumulatedPitch() const
 {
     return AccumulatedPitch;
+}
+
+float UCameraDataStreamer::GetSpeedMph() const
+{
+    return SpeedMph;
+}
+
+float UCameraDataStreamer::GetDistanceFeet() const
+{
+    return DistanceFeet;
+}
+
+int UCameraDataStreamer::GetControlBatteryPercentage() const
+{
+    return ControlBatteryPercentage;
+}
+
+int UCameraDataStreamer::GetDriveBatteryPercentage() const
+{
+    return DriveBatteryPercentage;
 }
