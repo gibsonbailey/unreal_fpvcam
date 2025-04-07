@@ -10,7 +10,7 @@ FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(
     TQueue<FRobotControlData *, EQueueMode::Spsc> *InDataQueue,
     UCameraDataStreamer *InStreamer)
     : bStopThread(false), DataQueue(InDataQueue), Streamer(InStreamer),
-      ListenSocket(nullptr), ControlStreamSocket(nullptr), ServerPort(6778), ControlStreamPort(6779), average_offset(0) {}
+      ListenSocket(nullptr), ServerPort(6778), ControlStreamSocket(nullptr), ControlStreamPort(6779), average_offset(0) {}
 
 FCameraDataStreamerRunnable::~FCameraDataStreamerRunnable() {
   DeconstructSocket();
@@ -93,6 +93,7 @@ bool FCameraDataStreamerRunnable::Init() {
 uint32 FCameraDataStreamerRunnable::Run() {
   SendServerAnnouncement();
   CalibrateClockOffset();
+    return 0;
 }
 
 void FCameraDataStreamerRunnable::CalibrateClockOffset() {
@@ -120,7 +121,9 @@ void FCameraDataStreamerRunnable::CalibrateClockOffset() {
              i < system_time_calibration_required_samples && !bStopThread;
              i++) {
           UE_LOG(LogTemp, Log, TEXT("Calibrating system time... sample %d"), i);
-          uint8 Buffer = 0;
+          uint8 Buffer[1];
+          FMemory::Memset(Buffer, 0, sizeof(Buffer));
+          
           // Get timestamp from system in milliseconds
 
           int32 Sent = 0;
@@ -206,7 +209,6 @@ void FCameraDataStreamerRunnable::CalibrateClockOffset() {
         ->DestroySocket(ClientSocket);
     ClientSocket = nullptr;
   }
-  return 0;
 }
 
 void FCameraDataStreamerRunnable::StreamControlData() {

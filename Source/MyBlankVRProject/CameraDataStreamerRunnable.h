@@ -26,8 +26,8 @@ private:
   // Socket variables
   FSocket *ListenSocket;
   int32 ServerPort;
-  int32 ControlStreamPort;
   FSocket *ControlStreamSocket;
+  int32 ControlStreamPort;
 
   // Clock calibration offset
   int64 average_offset;
@@ -40,4 +40,5 @@ private:
 
   // Building blocks of the streaming process
   void CalibrateClockOffset();
+  void StreamControlData();
 };
