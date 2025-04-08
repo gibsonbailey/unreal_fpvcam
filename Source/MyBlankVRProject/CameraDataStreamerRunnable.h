@@ -5,6 +5,7 @@
 #include "HAL/Runnable.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
+#include "Networking.h"
 
 class FCameraDataStreamerRunnable : public FRunnable {
 public:
@@ -22,6 +23,9 @@ private:
   FThreadSafeBool bStopThread;
   TQueue<FRobotControlData *, EQueueMode::Spsc> *DataQueue;
   UCameraDataStreamer *Streamer;
+
+  FIPv4Endpoint TargetEndpoint;
+  bool bTargetSet = false;
 
   // Socket variables
   FSocket *ListenSocket;

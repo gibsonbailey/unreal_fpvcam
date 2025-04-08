@@ -138,7 +138,7 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
 }
 
 int ADynamicTextureActor::InitializeUDPVideoStream() {
-  UE_LOG(LogTemp, Error, TEXT("Network init..."));
+  UE_LOG(LogTemp, Log, TEXT("Network init..."));
 
   avformat_network_init();
 

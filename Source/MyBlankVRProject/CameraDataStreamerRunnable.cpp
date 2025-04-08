@@ -94,6 +94,7 @@ bool FCameraDataStreamerRunnable::Init() {
 uint32 FCameraDataStreamerRunnable::Run() {
   SendServerAnnouncement();
   CalibrateClockOffset();
+  StreamControlData();
   return 0;
 }
 
@@ -213,6 +214,93 @@ void FCameraDataStreamerRunnable::CalibrateClockOffset() {
 }
 
 void FCameraDataStreamerRunnable::StreamControlData() {
+  uint8 Buffer[1024];
+  TSharedRef<FInternetAddr> Sender =
+      ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+  int32 BytesRead = 0;
+
+  while (!bStopThread && !bTargetSet) {
+    if (ControlStreamSocket->RecvFrom(Buffer, sizeof(Buffer), BytesRead,
+                                      *Sender)) {
+      UE_LOG(LogTemp, Log, TEXT("Received first packet from %s"),
+             *Sender->ToString(true));
+      TargetEndpoint = FIPv4Endpoint(Sender);
+      bTargetSet = true;
+    }
+    FPlatformProcess::Sleep(0.01f);
+  }
+
+  if (!bTargetSet) {
+    UE_LOG(LogTemp, Error, TEXT("No receiver found. Aborting control stream."));
+    return;
+  }
+
+  uint32 Sequence = 0;
+  int32 Counter = 0;
+
+  if (bStopThread) {
+    UE_LOG(LogTemp, Log, TEXT("Stopping control stream early."));
+    return;
+  }
+
+  while (!bStopThread) {
+    float SimValue = static_cast<float>(Counter) / 10.0f;
+    float Throttle = 0.0f;
+    float Steering = 0.0f;
+
+    // UE_LOG(LogTemp, Log, TEXT("Building packet - Seq: %d, Payload: %f, %f"),
+    //        Sequence, Steering, Throttle);
+
+    // Serialize payload (4 floats, big-endian)
+    TArray<uint8> Payload;
+    FMemoryWriter PayloadWriter(Payload, true);
+    PayloadWriter.SetByteSwapping(true);
+    PayloadWriter << SimValue;
+    float Zero = 0.0f;
+    PayloadWriter << Zero;
+    PayloadWriter << Throttle;
+    PayloadWriter << Steering;
+
+    // Compute checksum
+    uint16 Checksum = 0;
+    for (uint8 Byte : Payload) {
+      Checksum += Byte;
+    }
+
+    // Serialize header
+    TArray<uint8> Packet;
+    FMemoryWriter PacketWriter(Packet, true);
+    PacketWriter.SetByteSwapping(true);
+    PacketWriter << Sequence;
+    PacketWriter << Checksum;
+
+    uint64 Timestamp = (FDateTime::UtcNow().ToUnixTimestamp() * 1000) +
+                       FDateTime::UtcNow().GetMillisecond() + average_offset;
+    PacketWriter << Timestamp;
+
+    // Append payload
+    Packet.Append(Payload);
+
+    // UE_LOG(LogTemp, Log, TEXT("Packet size: %d"), Packet.Num());
+
+    int32 Sent = 0;
+    bool bSent = ControlStreamSocket->SendTo(
+        Packet.GetData(), Packet.Num(), Sent, *TargetEndpoint.ToInternetAddr());
+
+    if (!bSent) {
+      UE_LOG(LogTemp, Warning, TEXT("Failed to send control packet."));
+    } else {
+      UE_LOG(LogTemp, Log,
+             TEXT("Sent control packet to %s, Seq: %d, Payload: %f, %f"),
+             *TargetEndpoint.ToString(), Sequence, SimValue, Throttle);
+    }
+    Sequence++;
+    Counter++;
+    FPlatformProcess::Sleep(0.1f);
+  }
+
+  UE_LOG(LogTemp, Log, TEXT("Stopping control stream."));
+
   // else if (ClientSocket && isCalibrated) {
   //   // Set non-blocking mode
   //   ClientSocket->SetNonBlocking(true);
