@@ -28,6 +28,7 @@ public:
     void OnNewFrameAvailable();
 
     int InitializeUDPVideoStream();
+    void FFMpegCleanup();
 
     // ffmpeg
     AVFormatContext* formatContext;

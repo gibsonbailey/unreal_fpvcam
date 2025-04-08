@@ -10,7 +10,8 @@ FCameraDataStreamerRunnable::FCameraDataStreamerRunnable(
     TQueue<FRobotControlData *, EQueueMode::Spsc> *InDataQueue,
     UCameraDataStreamer *InStreamer)
     : bStopThread(false), DataQueue(InDataQueue), Streamer(InStreamer),
-      ListenSocket(nullptr), ServerPort(6778), ControlStreamSocket(nullptr), ControlStreamPort(6779), average_offset(0) {}
+      ListenSocket(nullptr), ServerPort(6778), ControlStreamSocket(nullptr),
+      ControlStreamPort(6779), average_offset(0) {}
 
 FCameraDataStreamerRunnable::~FCameraDataStreamerRunnable() {
   DeconstructSocket();
@@ -93,7 +94,7 @@ bool FCameraDataStreamerRunnable::Init() {
 uint32 FCameraDataStreamerRunnable::Run() {
   SendServerAnnouncement();
   CalibrateClockOffset();
-    return 0;
+  return 0;
 }
 
 void FCameraDataStreamerRunnable::CalibrateClockOffset() {
@@ -123,7 +124,7 @@ void FCameraDataStreamerRunnable::CalibrateClockOffset() {
           UE_LOG(LogTemp, Log, TEXT("Calibrating system time... sample %d"), i);
           uint8 Buffer[1];
           FMemory::Memset(Buffer, 0, sizeof(Buffer));
-          
+
           // Get timestamp from system in milliseconds
 
           int32 Sent = 0;
@@ -212,110 +213,109 @@ void FCameraDataStreamerRunnable::CalibrateClockOffset() {
 }
 
 void FCameraDataStreamerRunnable::StreamControlData() {
-    // else if (ClientSocket && isCalibrated) {
-    //   // Set non-blocking mode
-    //   ClientSocket->SetNonBlocking(true);
+  // else if (ClientSocket && isCalibrated) {
+  //   // Set non-blocking mode
+  //   ClientSocket->SetNonBlocking(true);
 
-    //   // Receive data from the client
-    //   uint8 ReceiveBuffer[sizeof(uint64) + (sizeof(float) * 2) +
-    //                       (sizeof(int) * 2)];
-    //   int32 BytesRead = 0;
+  //   // Receive data from the client
+  //   uint8 ReceiveBuffer[sizeof(uint64) + (sizeof(float) * 2) +
+  //                       (sizeof(int) * 2)];
+  //   int32 BytesRead = 0;
 
-    //   bool bReceived =
-    //       ClientSocket->Recv(ReceiveBuffer, sizeof(ReceiveBuffer), BytesRead);
+  //   bool bReceived =
+  //       ClientSocket->Recv(ReceiveBuffer, sizeof(ReceiveBuffer), BytesRead);
 
-    //   UE_LOG(LogTemp, Log, TEXT("Received speed data from client: %d bytes"),
-    //          BytesRead);
+  //   UE_LOG(LogTemp, Log, TEXT("Received speed data from client: %d bytes"),
+  //          BytesRead);
 
-    //   if (bReceived && BytesRead == sizeof(ReceiveBuffer)) {
-    //     // Extract the data from the buffer
-    //     uint64 placeholder;
-    //     float speed_mph;
-    //     float distance_ft;
-    //     int control_battery_percentage;
-    //     int drive_battery_percentage;
+  //   if (bReceived && BytesRead == sizeof(ReceiveBuffer)) {
+  //     // Extract the data from the buffer
+  //     uint64 placeholder;
+  //     float speed_mph;
+  //     float distance_ft;
+  //     int control_battery_percentage;
+  //     int drive_battery_percentage;
 
-    //     FMemory::Memcpy(&placeholder, ReceiveBuffer, sizeof(uint64));
-    //     FMemory::Memcpy(&speed_mph, ReceiveBuffer + sizeof(uint64),
-    //                     sizeof(float));
-    //     FMemory::Memcpy(&distance_ft,
-    //                     ReceiveBuffer + sizeof(uint64) + sizeof(float),
-    //                     sizeof(float));
-    //     FMemory::Memcpy(&control_battery_percentage,
-    //                     ReceiveBuffer + sizeof(uint64) + (sizeof(float) * 2),
-    //                     sizeof(int));
-    //     FMemory::Memcpy(&drive_battery_percentage,
-    //                     ReceiveBuffer + sizeof(uint64) + (sizeof(float) * 2) +
-    //                         sizeof(int),
-    //                     sizeof(int));
+  //     FMemory::Memcpy(&placeholder, ReceiveBuffer, sizeof(uint64));
+  //     FMemory::Memcpy(&speed_mph, ReceiveBuffer + sizeof(uint64),
+  //                     sizeof(float));
+  //     FMemory::Memcpy(&distance_ft,
+  //                     ReceiveBuffer + sizeof(uint64) + sizeof(float),
+  //                     sizeof(float));
+  //     FMemory::Memcpy(&control_battery_percentage,
+  //                     ReceiveBuffer + sizeof(uint64) + (sizeof(float) * 2),
+  //                     sizeof(int));
+  //     FMemory::Memcpy(&drive_battery_percentage,
+  //                     ReceiveBuffer + sizeof(uint64) + (sizeof(float) * 2) +
+  //                         sizeof(int),
+  //                     sizeof(int));
 
-    //     UE_LOG(LogTemp, Log, TEXT("telemetry data copied: %f, %f, %d, %d"),
-    //            speed_mph, distance_ft, control_battery_percentage,
-    //            drive_battery_percentage);
+  //     UE_LOG(LogTemp, Log, TEXT("telemetry data copied: %f, %f, %d, %d"),
+  //            speed_mph, distance_ft, control_battery_percentage,
+  //            drive_battery_percentage);
 
-    //     AsyncTask(ENamedThreads::GameThread, [this, speed_mph, distance_ft,
-    //                                           control_battery_percentage,
-    //                                           drive_battery_percentage]() {
-    //       Streamer->SpeedMph = speed_mph;
-    //       Streamer->DistanceFeet = distance_ft;
-    //       Streamer->ControlBatteryPercentage = control_battery_percentage;
-    //       Streamer->DriveBatteryPercentage = drive_battery_percentage;
-    //     });
+  //     AsyncTask(ENamedThreads::GameThread, [this, speed_mph, distance_ft,
+  //                                           control_battery_percentage,
+  //                                           drive_battery_percentage]() {
+  //       Streamer->SpeedMph = speed_mph;
+  //       Streamer->DistanceFeet = distance_ft;
+  //       Streamer->ControlBatteryPercentage = control_battery_percentage;
+  //       Streamer->DriveBatteryPercentage = drive_battery_percentage;
+  //     });
 
-    //     UE_LOG(LogTemp, Log, TEXT("Telemetry receive async task triggered"));
+  //     UE_LOG(LogTemp, Log, TEXT("Telemetry receive async task triggered"));
 
-    //     lastDataReceivedTime = FPlatformTime::Seconds();
-    //   }
+  //     lastDataReceivedTime = FPlatformTime::Seconds();
+  //   }
 
-    //   // If it's been more than 0.25 seconds since the last data was received,
-    //   // reset the speed and distance to 0
-    //   if (FPlatformTime::Seconds() - lastDataReceivedTime > 1) {
-    //     AsyncTask(ENamedThreads::GameThread, [this]() {
-    //       Streamer->SpeedMph = 0.0f;
-    //       Streamer->DistanceFeet = 0.0f;
-    //     });
-    //   }
+  //   // If it's been more than 0.25 seconds since the last data was received,
+  //   // reset the speed and distance to 0
+  //   if (FPlatformTime::Seconds() - lastDataReceivedTime > 1) {
+  //     AsyncTask(ENamedThreads::GameThread, [this]() {
+  //       Streamer->SpeedMph = 0.0f;
+  //       Streamer->DistanceFeet = 0.0f;
+  //     });
+  //   }
 
-    //   FRobotControlData *DataToSend = nullptr;
-    //   while (DataQueue->Dequeue(DataToSend)) {
-    //   }
+  //   FRobotControlData *DataToSend = nullptr;
+  //   while (DataQueue->Dequeue(DataToSend)) {
+  //   }
 
-    //   if (DataToSend) {
-    //     // Create byte array to send
-    //     // 1 unsigned long long int (8 bytes) + 3 floats (4 bytes each)
-    //     uint8 Buffer[sizeof(uint64) + (sizeof(float) * 4)];
-    //     // Get timestamp from system in milliseconds
-    //     uint64 timeStamp =
-    //         (FDateTime::UtcNow().ToUnixTimestamp() * 1000) + average_offset;
-    //     FMemory::Memcpy(Buffer, &timeStamp, sizeof(uint64));
-    //     FMemory::Memcpy(Buffer + sizeof(uint64), &DataToSend->Pitch,
-    //                     sizeof(float));
-    //     FMemory::Memcpy(Buffer + sizeof(uint64) + sizeof(float),
-    //                     &DataToSend->Yaw, sizeof(float));
-    //     FMemory::Memcpy(Buffer + sizeof(uint64) + (sizeof(float) * 2),
-    //                     &DataToSend->TriggerPosition, sizeof(float));
-    //     FMemory::Memcpy(Buffer + sizeof(uint64) + (sizeof(float) * 3),
-    //                     &DataToSend->ThumbstickX, sizeof(float));
+  //   if (DataToSend) {
+  //     // Create byte array to send
+  //     // 1 unsigned long long int (8 bytes) + 3 floats (4 bytes each)
+  //     uint8 Buffer[sizeof(uint64) + (sizeof(float) * 4)];
+  //     // Get timestamp from system in milliseconds
+  //     uint64 timeStamp =
+  //         (FDateTime::UtcNow().ToUnixTimestamp() * 1000) + average_offset;
+  //     FMemory::Memcpy(Buffer, &timeStamp, sizeof(uint64));
+  //     FMemory::Memcpy(Buffer + sizeof(uint64), &DataToSend->Pitch,
+  //                     sizeof(float));
+  //     FMemory::Memcpy(Buffer + sizeof(uint64) + sizeof(float),
+  //                     &DataToSend->Yaw, sizeof(float));
+  //     FMemory::Memcpy(Buffer + sizeof(uint64) + (sizeof(float) * 2),
+  //                     &DataToSend->TriggerPosition, sizeof(float));
+  //     FMemory::Memcpy(Buffer + sizeof(uint64) + (sizeof(float) * 3),
+  //                     &DataToSend->ThumbstickX, sizeof(float));
 
-    //     int32 Sent = 0;
-    //     bool bSendSuccess = ClientSocket->Send(Buffer, sizeof(Buffer), Sent);
+  //     int32 Sent = 0;
+  //     bool bSendSuccess = ClientSocket->Send(Buffer, sizeof(Buffer), Sent);
 
-    //     delete DataToSend;
-    //     if (!bSendSuccess) {
-    //       UE_LOG(LogTemp, Warning, TEXT("Send failed. Closing client socket."));
-    //       ClientSocket->Close();
-    //       ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)
-    //           ->DestroySocket(ClientSocket);
-    //       ClientSocket = nullptr;
-    //     }
-    //   } else {
-    //     FPlatformProcess::Sleep(0.001f);
-    //   }
-    // } else {
-    //   // No client yet; avoid busy wait
-    //   FPlatformProcess::Sleep(0.01f);
-    // }
-
+  //     delete DataToSend;
+  //     if (!bSendSuccess) {
+  //       UE_LOG(LogTemp, Warning, TEXT("Send failed. Closing client
+  //       socket.")); ClientSocket->Close();
+  //       ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)
+  //           ->DestroySocket(ClientSocket);
+  //       ClientSocket = nullptr;
+  //     }
+  //   } else {
+  //     FPlatformProcess::Sleep(0.001f);
+  //   }
+  // } else {
+  //   // No client yet; avoid busy wait
+  //   FPlatformProcess::Sleep(0.01f);
+  // }
 }
 
 void FCameraDataStreamerRunnable::Stop() { bStopThread = true; }
@@ -343,7 +343,8 @@ bool FCameraDataStreamerRunnable::InitializeControlStreamSocket() {
   // Create the socket. UDP this time
   ControlStreamSocket =
       ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)
-          ->CreateSocket(NAME_DGram, TEXT("CameraDataControlStreamSocketSocket"), false);
+          ->CreateSocket(NAME_DGram,
+                         TEXT("CameraDataControlStreamSocketSocket"), false);
 
   // 0.0.0.0 on the given port
   TSharedRef<FInternetAddr> Addr =

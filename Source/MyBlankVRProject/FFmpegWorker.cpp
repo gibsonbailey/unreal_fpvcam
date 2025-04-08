@@ -44,6 +44,7 @@ uint32 FFmpegWorker::Run()
         {
             break; // Initialization successful
         }
+        Owner->FFMpegCleanup();
         
         UE_LOG(LogTemp, Error, TEXT("Failed to initialize FFmpeg stream. Retrying in 1 second..."));
         FPlatformProcess::Sleep(3.0f);

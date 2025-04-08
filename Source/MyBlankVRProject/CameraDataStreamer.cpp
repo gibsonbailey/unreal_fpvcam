@@ -116,7 +116,7 @@ void UCameraDataStreamer::TickComponent(float DeltaTime, ELevelTick TickType, FA
                     FInputActionValue CurrentThumbstickValue = Subsystem->GetPlayerInput()->GetActionValue(IA_Hand_Thumbstick_Right);
                     CachedRightThumbstickValue = CurrentThumbstickValue.Get<float>();
 
-                    UE_LOG(LogTemp, Log, TEXT("Streamer Speed: %f, Distance: %f"), SpeedMph, DistanceFeet);
+                    // UE_LOG(LogTemp, Log, TEXT("Streamer Speed: %f, Distance: %f"), SpeedMph, DistanceFeet);
                 }
 
                 // Enqueue the data
